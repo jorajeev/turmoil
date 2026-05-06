@@ -8,7 +8,7 @@ use std::task::{Context, Poll};
 use crate::kernel::{Addr, Fd, SocketOption, SocketOptionKind, Type};
 use crate::shim::tokio::net::tcp::TcpStream;
 use crate::shim::tokio::net::ToSocketAddrs;
-use crate::sys;
+use crate::{sys, try_sys};
 
 #[derive(Debug)]
 pub struct TcpListener {
@@ -63,6 +63,6 @@ impl TcpListener {
 
 impl Drop for TcpListener {
     fn drop(&mut self) {
-        sys(|k| k.close(self.fd));
+        try_sys(|k| k.close(self.fd));
     }
 }

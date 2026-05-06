@@ -12,7 +12,7 @@ use crate::kernel::{Addr, Domain, Fd, SocketOption, SocketOptionKind, Type};
 use crate::shim::tokio::net::tcp::split::{split, ReadHalf, WriteHalf};
 use crate::shim::tokio::net::tcp::split_owned::{split_owned, OwnedReadHalf, OwnedWriteHalf};
 use crate::shim::tokio::net::ToSocketAddrs;
-use crate::sys;
+use crate::{sys, try_sys};
 
 #[derive(Debug)]
 pub struct TcpStream {
@@ -142,7 +142,7 @@ pub(super) fn noop_cx() -> Context<'static> {
 
 impl Drop for TcpStream {
     fn drop(&mut self) {
-        sys(|k| k.close(self.fd));
+        try_sys(|k| k.close(self.fd));
     }
 }
 
@@ -245,7 +245,7 @@ impl FdGuard {
 impl Drop for FdGuard {
     fn drop(&mut self) {
         if self.armed {
-            sys(|k| k.close(self.fd));
+            try_sys(|k| k.close(self.fd));
         }
     }
 }

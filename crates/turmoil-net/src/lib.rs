@@ -30,6 +30,7 @@ use indexmap::IndexMap;
 
 mod dns;
 mod fabric;
+#[cfg(not(feature = "shuttle"))]
 pub mod fixture;
 mod kernel;
 mod netstat;
@@ -223,6 +224,18 @@ impl EnterGuard {
     }
 }
 
+impl EnterGuard {
+    /// Remove the installed `Net` and return it, consuming the guard.
+    /// This allows the caller to regain ownership for further mutation
+    /// (e.g., adding hosts between `run()` calls).
+    pub fn exit(self) -> Net {
+        let net = CURRENT.with(|c| c.borrow_mut().take())
+            .expect("guard is live — Net must be installed");
+        std::mem::forget(self); // skip Drop (which would set to None again)
+        net
+    }
+}
+
 impl Drop for EnterGuard {
     fn drop(&mut self) {
         CURRENT.with(|c| *c.borrow_mut() = None);
@@ -239,6 +252,18 @@ pub(crate) fn sys<R>(f: impl FnOnce(&mut Kernel) -> R) -> R {
             .current
             .expect("no current host — register one with Net::add_host()");
         f(net.fabric.kernel_mut(id))
+    })
+}
+
+/// Like `sys`, but returns `None` if no Net is installed or no
+/// current host is set. Used in Drop impls where panicking is
+/// unacceptable.
+pub(crate) fn try_sys<R>(f: impl FnOnce(&mut Kernel) -> R) -> Option<R> {
+    CURRENT.with(|c| {
+        let mut cell = c.borrow_mut();
+        let net = cell.as_mut()?;
+        let id = net.current?;
+        Some(f(net.fabric.kernel_mut(id)))
     })
 }
 
@@ -267,6 +292,70 @@ pub fn set_current(id: HostId) {
             .expect("no Net installed — call Net::enter() first")
             .current = Some(id);
     });
+}
+
+/// Like `set_current` but returns `false` if no Net is installed.
+pub fn try_set_current(id: HostId) -> bool {
+    CURRENT.with(|c| {
+        if let Some(net) = c.borrow_mut().as_mut() {
+            net.current = Some(id);
+            true
+        } else {
+            false
+        }
+    })
+}
+
+/// Run the retransmit sweep for a single host's kernel.
+/// Call once per logical tick of the host's clock.
+/// Panics if no `Net` is installed.
+pub fn check_retx_for_host(id: HostId) {
+    CURRENT.with(|c| {
+        c.borrow_mut()
+            .as_mut()
+            .expect("no Net installed — call Net::enter() first")
+            .fabric
+            .kernel_mut(id)
+            .check_retx()
+    });
+}
+
+/// Drain every host's outbound packet queue into `out`.
+/// Free-function form of [`EnterGuard::egress_all`].
+/// Panics if no `Net` is installed.
+pub fn egress_all(out: &mut Vec<Packet>) {
+    CURRENT.with(|c| {
+        c.borrow_mut()
+            .as_mut()
+            .expect("no Net installed — call Net::enter() first")
+            .fabric
+            .egress_all(out)
+    });
+}
+
+/// Route a packet to the host owning its destination IP.
+/// Free-function form of [`EnterGuard::deliver`].
+/// Panics if no `Net` is installed.
+pub fn deliver(pkt: Packet) {
+    CURRENT.with(|c| {
+        c.borrow_mut()
+            .as_mut()
+            .expect("no Net installed — call Net::enter() first")
+            .fabric
+            .deliver(pkt)
+    });
+}
+
+/// Evaluate rules for a packet.
+/// Free-function form of [`EnterGuard::evaluate`].
+/// Panics if no `Net` is installed.
+pub fn evaluate(pkt: &Packet) -> Verdict {
+    CURRENT.with(|c| {
+        c.borrow_mut()
+            .as_mut()
+            .expect("no Net installed — call Net::enter() first")
+            .evaluate(pkt)
+    })
 }
 
 /// Install a rule and return a guard that uninstalls it on drop.

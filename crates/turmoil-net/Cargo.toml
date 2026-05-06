@@ -11,6 +11,9 @@ readme = "README.md"
 keywords = ["Deterministic", "Simulation", "Testing"]
 categories = ["asynchronous", "network-programming", "simulation"]
 
+[features]
+shuttle = []
+
 [dependencies]
 bytes = "1"
 indexmap = "2"

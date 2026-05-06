@@ -20,7 +20,7 @@ use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 use crate::shim::tokio::net::tcp::stream::{noop_cx, TcpStream};
-use crate::sys;
+use crate::try_sys;
 
 /// Owned read half of a [`TcpStream`], created by [`TcpStream::into_split`].
 ///
@@ -170,7 +170,7 @@ impl Drop for OwnedWriteHalf {
             // Shutdown is synchronous in our kernel (queues FIN, returns
             // Ready immediately) — safe to drive with a noop waker.
             let fd = self.inner.fd();
-            let _ = sys(|k| k.poll_shutdown_write(fd, &mut noop_cx()));
+            let _ = try_sys(|k| k.poll_shutdown_write(fd, &mut noop_cx()));
         }
     }
 }

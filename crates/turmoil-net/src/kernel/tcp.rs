@@ -1180,6 +1180,7 @@ pub(super) fn check_retx(k: &mut Kernel) {
 /// `SynReceived`) for a handshake that's been stuck. Reuses
 /// `snd_una - 1` as the seq — matches the ISN used at initial emit,
 /// since `snd_una` was set to `isn + 1` there.
+#[cfg_attr(feature = "shuttle", allow(dead_code))]
 fn emit_handshake(k: &mut Kernel, fd: Fd) {
     let st = k.lookup(fd).expect("retx candidate");
     let tcb = st.tcb.as_ref().expect("handshake state has tcb");

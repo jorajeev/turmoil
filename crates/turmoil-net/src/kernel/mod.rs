@@ -593,6 +593,17 @@ impl Kernel {
         }
     }
 
+    /// Run the count-based retransmit sweep for this kernel.
+    ///
+    /// Should be called once per logical tick of this host's clock —
+    /// *not* once per `egress()` call — so that the counter reflects
+    /// the host's own progress rather than global egress cadence.
+    /// Under `#[cfg(feature = "shuttle")]`, the shuttle scheduler
+    /// calls this explicitly; the tokio fixture gets it via `egress()`.
+    pub fn check_retx(&mut self) {
+        tcp::check_retx(self);
+    }
+
     /// Drain packets the stack has produced since the last call,
     /// appending those leaving this host to `out`. Passing the buffer
     /// in lets callers amortize the allocation across ticks.
@@ -609,6 +620,7 @@ impl Kernel {
         // Count-based retx check runs once per egress, before
         // segmentation — if it rewinds snd_nxt for a socket, this
         // call's segment_all pass picks up the re-emission.
+        #[cfg(not(feature = "shuttle"))]
         tcp::check_retx(self);
         loop {
             tcp::segment_all(self);
